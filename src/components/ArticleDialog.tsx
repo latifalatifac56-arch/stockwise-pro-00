@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
-import { Upload } from 'lucide-react';
+import { Upload, Loader2 } from 'lucide-react';
 
 type Article = Tables<'articles'>;
 
@@ -25,6 +25,7 @@ const units = ['Pièce', 'Carton', 'Kg', 'Litre', 'Mètre'];
 
 export function ArticleDialog({ open, onOpenChange, article, onSuccess }: ArticleDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [formData, setFormData] = useState({
     sku: '',
     name: '',
@@ -33,12 +34,12 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
     type: 'Stockable',
     image: '',
     barcode: '',
-    buy_price: 0,
-    sell_price: 0,
-    wholesale_price: 0,
+    buy_price: '',
+    sell_price: '',
+    wholesale_price: '',
     unit: 'Pièce',
-    stock: 0,
-    min_stock: 5,
+    stock: '',
+    min_stock: '5',
     status: 'active',
   });
 
@@ -52,12 +53,12 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
         type: article.type,
         image: article.image || '',
         barcode: article.barcode || '',
-        buy_price: article.buy_price,
-        sell_price: article.sell_price,
-        wholesale_price: article.wholesale_price || 0,
+        buy_price: article.buy_price?.toString() || '0',
+        sell_price: article.sell_price?.toString() || '0',
+        wholesale_price: article.wholesale_price?.toString() || '',
         unit: article.unit,
-        stock: article.stock,
-        min_stock: article.min_stock,
+        stock: article.stock?.toString() || '0',
+        min_stock: article.min_stock?.toString() || '5',
         status: article.status || 'active',
       });
     } else {
@@ -69,53 +70,107 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
         type: 'Stockable',
         image: '',
         barcode: '',
-        buy_price: 0,
-        sell_price: 0,
-        wholesale_price: 0,
+        buy_price: '0',
+        sell_price: '0',
+        wholesale_price: '',
         unit: 'Pièce',
-        stock: 0,
-        min_stock: 5,
+        stock: '0',
+        min_stock: '5',
         status: 'active',
       });
     }
   }, [article, open]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, image: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('L\'image ne doit pas dépasser 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('articles')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('articles')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, image: publicUrl });
+      toast.success('Image téléchargée avec succès');
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast.error('Erreur lors du téléchargement de l\'image');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.name.trim()) {
+      toast.error('Le nom de l\'article est requis');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Parse numeric values safely
+      const buyPrice = parseFloat(formData.buy_price) || 0;
+      const sellPrice = parseFloat(formData.sell_price) || 0;
+      const wholesalePrice = formData.wholesale_price ? parseFloat(formData.wholesale_price) : null;
+      const stock = parseInt(formData.stock) || 0;
+      const minStock = parseInt(formData.min_stock) || 5;
+
+      // Validate numeric values
+      if (buyPrice < 0 || sellPrice < 0 || (wholesalePrice !== null && wholesalePrice < 0)) {
+        toast.error('Les prix ne peuvent pas être négatifs');
+        setLoading(false);
+        return;
+      }
+
+      if (stock < 0 || minStock < 0) {
+        toast.error('Les quantités ne peuvent pas être négatives');
+        setLoading(false);
+        return;
+      }
+
+      const articleData = {
+        sku: formData.sku,
+        name: formData.name.trim(),
+        description: formData.description?.trim() || null,
+        category: formData.category,
+        type: formData.type,
+        image: formData.image || null,
+        barcode: formData.barcode?.trim() || null,
+        buy_price: buyPrice,
+        sell_price: sellPrice,
+        wholesale_price: wholesalePrice,
+        unit: formData.unit,
+        stock: stock,
+        min_stock: minStock,
+        status: formData.status,
+      };
+
       if (article?.id) {
         // Update existing article
         const { error } = await supabase
           .from('articles')
-          .update({
-            sku: formData.sku,
-            name: formData.name,
-            description: formData.description || null,
-            category: formData.category,
-            type: formData.type,
-            image: formData.image || null,
-            barcode: formData.barcode || null,
-            buy_price: formData.buy_price,
-            sell_price: formData.sell_price,
-            wholesale_price: formData.wholesale_price || null,
-            unit: formData.unit,
-            stock: formData.stock,
-            min_stock: formData.min_stock,
-            status: formData.status,
-          })
+          .update(articleData)
           .eq('id', article.id);
         
         if (error) throw error;
@@ -124,22 +179,7 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
         // Create new article
         const { error } = await supabase
           .from('articles')
-          .insert({
-            sku: formData.sku,
-            name: formData.name,
-            description: formData.description || null,
-            category: formData.category,
-            type: formData.type,
-            image: formData.image || null,
-            barcode: formData.barcode || null,
-            buy_price: formData.buy_price,
-            sell_price: formData.sell_price,
-            wholesale_price: formData.wholesale_price || null,
-            unit: formData.unit,
-            stock: formData.stock,
-            min_stock: formData.min_stock,
-            status: formData.status,
-          });
+          .insert(articleData);
         
         if (error) throw error;
         toast.success('Article créé avec succès');
@@ -253,7 +293,7 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
                 min="0"
                 step="0.01"
                 value={formData.buy_price}
-                onChange={(e) => setFormData({ ...formData, buy_price: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, buy_price: e.target.value })}
                 required
               />
             </div>
@@ -265,7 +305,7 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
                 min="0"
                 step="0.01"
                 value={formData.sell_price}
-                onChange={(e) => setFormData({ ...formData, sell_price: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, sell_price: e.target.value })}
                 required
               />
             </div>
@@ -277,7 +317,7 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
                 min="0"
                 step="0.01"
                 value={formData.wholesale_price}
-                onChange={(e) => setFormData({ ...formData, wholesale_price: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, wholesale_price: e.target.value })}
               />
             </div>
           </div>
@@ -290,7 +330,7 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
                 type="number"
                 min="0"
                 value={formData.stock}
-                onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                 required
               />
             </div>
@@ -301,7 +341,7 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
                 type="number"
                 min="0"
                 value={formData.min_stock}
-                onChange={(e) => setFormData({ ...formData, min_stock: parseInt(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, min_stock: e.target.value })}
                 required
               />
             </div>
@@ -310,13 +350,21 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
           <div className="space-y-2">
             <Label htmlFor="image">Image du produit</Label>
             <div className="flex items-center gap-4">
-              <Input
-                id="image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="flex-1"
-              />
+              <div className="relative flex-1">
+                <Input
+                  id="image"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                  className="flex-1"
+                />
+                {uploadingImage && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </div>
+                )}
+              </div>
               {formData.image && (
                 <img src={formData.image} alt="Preview" className="h-16 w-16 object-cover rounded-lg" />
               )}
@@ -327,7 +375,7 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Annuler
             </Button>
-            <Button type="submit" disabled={loading} className="bg-gradient-primary">
+            <Button type="submit" disabled={loading || uploadingImage} className="bg-gradient-primary">
               {loading ? 'Enregistrement...' : article ? 'Mettre à jour' : 'Créer'}
             </Button>
           </DialogFooter>
