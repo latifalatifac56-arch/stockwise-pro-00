@@ -63,6 +63,42 @@ export default function Articles() {
   }, [searchTerm]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingArticle, setEditingArticle] = useState<Article | undefined>(undefined);
+
+  const handleEdit = (article: Article) => {
+    setEditingArticle(article);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingArticle(undefined);
+    }
+  };
+
+  const handleAddNew = () => {
+    setEditingArticle(undefined);
+    setDialogOpen(true);
+  };
+
+  const handleDelete = async (article: Article) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer "${article.name}" ?`)) return;
+    
+    try {
+      const { error } = await supabase
+        .from('articles')
+        .delete()
+        .eq('id', article.id);
+      
+      if (error) throw error;
+      toast.success('Article supprimé avec succès');
+      loadArticles();
+    } catch (error: any) {
+      console.error('Error deleting article:', error);
+      toast.error(error.message || 'Erreur lors de la suppression');
+    }
+  };
 
   const totalStock = articles.reduce((acc, a) => acc + a.stock, 0);
   const lowStockCount = articles.filter(a => a.stock <= a.min_stock).length;
@@ -107,7 +143,7 @@ export default function Articles() {
             </Button>
             <Button 
               className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:-translate-y-0.5" 
-              onClick={() => setDialogOpen(true)}
+              onClick={handleAddNew}
             >
               <Plus className="h-4 w-4 mr-2" />
               Nouvel article
@@ -166,7 +202,8 @@ export default function Articles() {
 
       <ArticleDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={handleDialogClose}
+        article={editingArticle}
         onSuccess={loadArticles}
       />
 
@@ -243,7 +280,7 @@ export default function Articles() {
               }
             </p>
             {!searchTerm && (
-              <Button onClick={() => setDialogOpen(true)} className="bg-gradient-to-r from-primary to-primary/90">
+              <Button onClick={handleAddNew} className="bg-gradient-to-r from-primary to-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Ajouter un article
               </Button>
@@ -344,6 +381,10 @@ export default function Articles() {
                     variant="outline" 
                     size="sm" 
                     className="flex-1 group/btn border-border/50 hover:border-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(article);
+                    }}
                   >
                     <Edit className="h-4 w-4 mr-2 group-hover/btn:rotate-12 transition-transform duration-300" />
                     Modifier
@@ -352,6 +393,10 @@ export default function Articles() {
                     variant="outline" 
                     size="sm" 
                     className="border-border/50 hover:border-destructive hover:bg-destructive hover:text-destructive-foreground transition-all duration-300 group/del"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(article);
+                    }}
                   >
                     <Trash2 className="h-4 w-4 group-hover/del:scale-110 transition-transform duration-300" />
                   </Button>
@@ -450,6 +495,7 @@ export default function Articles() {
                           variant="ghost" 
                           size="icon"
                           className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                          onClick={() => handleEdit(article)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -457,6 +503,7 @@ export default function Articles() {
                           variant="ghost" 
                           size="icon"
                           className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => handleDelete(article)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
