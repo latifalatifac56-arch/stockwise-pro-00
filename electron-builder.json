@@ -1,0 +1,49 @@
+{
+  "appId": "com.gestionpro.app",
+  "productName": "GestionPro",
+  "copyright": "Copyright © 2024 GestionPro",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "public/icon.ico"
+  ],
+  "extraMetadata": {
+    "main": "electron/main.js"
+  },
+  "win": {
+    "icon": "public/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64", "ia32"]
+      }
+    ],
+    "artifactName": "${productName}-Setup-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "allowElevation": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "GestionPro",
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico",
+    "installerHeaderIcon": "public/icon.ico"
+  },
+  "mac": {
+    "icon": "public/icon.icns",
+    "target": ["dmg"],
+    "category": "public.app-category.business"
+  },
+  "linux": {
+    "icon": "public/icon.png",
+    "target": ["AppImage", "deb"],
+    "category": "Office"
+  }
+}
