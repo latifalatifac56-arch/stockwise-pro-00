@@ -43,43 +43,59 @@ export function ArticleDialog({ open, onOpenChange, article, onSuccess }: Articl
     status: 'active',
   });
 
+  // Store the article ID to track which article we're editing
+  const [currentArticleId, setCurrentArticleId] = useState<string | null>(null);
+
   useEffect(() => {
-    if (article) {
-      setFormData({
-        sku: article.sku,
-        name: article.name,
-        description: article.description || '',
-        category: article.category,
-        type: article.type,
-        image: article.image || '',
-        barcode: article.barcode || '',
-        buy_price: article.buy_price?.toString() || '0',
-        sell_price: article.sell_price?.toString() || '0',
-        wholesale_price: article.wholesale_price?.toString() || '',
-        unit: article.unit,
-        stock: article.stock?.toString() || '0',
-        min_stock: article.min_stock?.toString() || '5',
-        status: article.status || 'active',
-      });
+    // Only reset form when dialog opens with a different article
+    if (open) {
+      const newArticleId = article?.id || null;
+      
+      // Only update form if we're editing a different article
+      if (newArticleId !== currentArticleId) {
+        setCurrentArticleId(newArticleId);
+        
+        if (article) {
+          setFormData({
+            sku: article.sku,
+            name: article.name,
+            description: article.description || '',
+            category: article.category,
+            type: article.type,
+            image: article.image || '',
+            barcode: article.barcode || '',
+            buy_price: article.buy_price?.toString() || '0',
+            sell_price: article.sell_price?.toString() || '0',
+            wholesale_price: article.wholesale_price?.toString() || '',
+            unit: article.unit,
+            stock: article.stock?.toString() || '0',
+            min_stock: article.min_stock?.toString() || '5',
+            status: article.status || 'active',
+          });
+        } else {
+          setFormData({
+            sku: `SKU-${Date.now()}`,
+            name: '',
+            description: '',
+            category: 'Électronique',
+            type: 'Stockable',
+            image: '',
+            barcode: '',
+            buy_price: '0',
+            sell_price: '0',
+            wholesale_price: '',
+            unit: 'Pièce',
+            stock: '0',
+            min_stock: '5',
+            status: 'active',
+          });
+        }
+      }
     } else {
-      setFormData({
-        sku: `SKU-${Date.now()}`,
-        name: '',
-        description: '',
-        category: 'Électronique',
-        type: 'Stockable',
-        image: '',
-        barcode: '',
-        buy_price: '0',
-        sell_price: '0',
-        wholesale_price: '',
-        unit: 'Pièce',
-        stock: '0',
-        min_stock: '5',
-        status: 'active',
-      });
+      // Reset current article ID when dialog closes
+      setCurrentArticleId(null);
     }
-  }, [article, open]);
+  }, [article, open, currentArticleId]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
